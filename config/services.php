@@ -35,4 +35,9 @@ return [
         ],
     ],
 
+    'wb' => [
+        'host' => env('WB_API_HOST'),
+        'key' => env('WB_API_KEY'),
+    ],
+
 ];
