@@ -6,6 +6,7 @@ use App\Jobs\SyncIncomesJob;
 use App\Jobs\SyncOrdersJob;
 use App\Jobs\SyncSalesJob;
 use App\Jobs\SyncStocksJob;
+use App\Models\Account;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Log;
@@ -20,14 +21,16 @@ class SyncWbData extends Command
     {
         $this->info('Dispatching jobs...');
 
-        Bus::chain([
-            new SyncOrdersJob(),
-            new SyncSalesJob(),
-            new SyncStocksJob(),
-            new SyncIncomesJob(),
-        ])->catch(function ($e) {
-            Log::error('Sync chain failed: ' . $e->getMessage());
-        })->dispatch();
+        $accounts = Account::with('tokens')->get();
+
+        foreach ($accounts as $account) {
+            Bus::chain([
+                new SyncOrdersJob($account),
+                new SyncSalesJob($account),
+                new SyncStocksJob($account),
+                new SyncIncomesJob($account),
+            ])->dispatch();
+        }
 
         $this->info('Sync started');
     }
