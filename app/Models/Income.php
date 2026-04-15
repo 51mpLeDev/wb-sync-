@@ -16,5 +16,6 @@ class Income extends Model
         'warehouse_name',
         'nm_id',
         'barcode',
+        'account_id',
     ];
 }

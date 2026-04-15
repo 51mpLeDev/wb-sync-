@@ -22,5 +22,6 @@ class Order extends Model
         'brand',
         'is_cancel',
         'cancel_dt',
+        'account_id',
     ];
 }

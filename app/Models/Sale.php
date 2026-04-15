@@ -25,5 +25,6 @@ class Sale extends Model
         'for_pay',
         'finished_price',
         'price_with_disc',
+        'account_id',
     ];
 }

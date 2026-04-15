@@ -15,5 +15,6 @@ class Stock extends Model
         'in_way_to_client',
         'in_way_from_client',
         'barcode',
+        'account_id',
     ];
 }
