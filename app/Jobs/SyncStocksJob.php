@@ -1,6 +1,7 @@
 <?php
 namespace App\Jobs;
 
+use App\Models\Account;
 use App\Models\Order;
 use App\Models\Sale;
 use App\Models\Stock;
@@ -19,9 +20,11 @@ class SyncStocksJob implements ShouldQueue
     /**
      * Create a new job instance.
      */
-    public function __construct()
+    private Account $account;
+
+    public function __construct(Account $account)
     {
-        //
+        $this->account = $account;
     }
 
     /**
@@ -59,7 +62,10 @@ class SyncStocksJob implements ShouldQueue
 
             try {
                 Stock::updateOrCreate(
-                    ['external_id' => $externalId],
+                    [
+                        'account_id' => $this->account->id,
+                        'external_id' => $externalId
+                    ],
                     [
                         'date' => $item['date'] ?? null,
                         'warehouse_name' => $item['warehouse_name'] ?? null,

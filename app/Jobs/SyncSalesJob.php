@@ -1,6 +1,7 @@
 <?php
 namespace App\Jobs;
 
+use App\Models\Account;
 use App\Models\Order;
 use App\Models\Sale;
 use App\Services\Api\WbApiService;
@@ -18,9 +19,11 @@ class SyncSalesJob implements ShouldQueue
     /**
      * Create a new job instance.
      */
-    public function __construct()
+    private Account $account;
+
+    public function __construct(Account $account)
     {
-        //
+        $this->account = $account;
     }
 
     /**
@@ -54,7 +57,10 @@ class SyncSalesJob implements ShouldQueue
 
                 try {
                     Sale::updateOrCreate(
-                        ['external_id' => $item['sale_id']],
+                        [
+                            'account_id' => $this->account->id,
+                            'external_id' => $item['sale_id']
+                        ],
                         [
                             'g_number' => $item['g_number'] ?? null,
                             'date' => $item['date'] ?? null,

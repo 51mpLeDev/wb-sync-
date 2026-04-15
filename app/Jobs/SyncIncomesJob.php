@@ -1,6 +1,7 @@
 <?php
 namespace App\Jobs;
 
+use App\Models\Account;
 use App\Models\Income;
 use App\Models\Order;
 use App\Models\Sale;
@@ -20,9 +21,11 @@ class SyncIncomesJob implements ShouldQueue
     /**
      * Create a new job instance.
      */
-    public function __construct()
+    private Account $account;
+
+    public function __construct(Account $account)
     {
-        //
+        $this->account = $account;
     }
 
     /**
@@ -56,7 +59,10 @@ class SyncIncomesJob implements ShouldQueue
 
                 try {
                     Income::updateOrCreate(
-                        ['external_id' => $item['income_id']],
+                        [
+                            'account_id' => $this->account->id,
+                            'external_id' => $item['income_id']
+                        ],
                         [
                             'date' => $item['date'] ?? null,
                             'last_change_date' => $item['last_change_date'] ?? null,

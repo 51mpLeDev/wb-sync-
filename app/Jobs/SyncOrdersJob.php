@@ -1,6 +1,7 @@
 <?php
 namespace App\Jobs;
 
+use App\Models\Account;
 use App\Models\Order;
 use App\Services\Api\WbApiService;
 use Illuminate\Bus\Queueable;
@@ -17,9 +18,11 @@ class SyncOrdersJob implements ShouldQueue
     /**
      * Create a new job instance.
      */
-    public function __construct()
+    private Account $account;
+
+    public function __construct(Account $account)
     {
-        //
+        $this->account = $account;
     }
 
     /**
@@ -60,7 +63,10 @@ class SyncOrdersJob implements ShouldQueue
 
                 try {
                     Order::updateOrCreate(
-                        ['external_id' => $item['g_number']],
+                        [
+                            'account_id' => $this->account->id,
+                            'external_id' => $item['g_number']
+                        ],
                         [
                             'number' => $item['g_number'],
                             'date' => $item['date'] ?? null,
