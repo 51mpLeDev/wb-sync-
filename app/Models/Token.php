@@ -18,4 +18,14 @@ class Token extends Model
     {
         return $this->belongsTo(Account::class);
     }
+
+    public function apiService()
+    {
+        return $this->belongsTo(ApiService::class);
+    }
+
+    public function tokenType()
+    {
+        return $this->belongsTo(TokenType::class);
+    }
 }
