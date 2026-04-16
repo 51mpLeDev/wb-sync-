@@ -4,24 +4,24 @@ namespace App\Jobs;
 use App\Models\Account;
 use App\Models\Income;
 use App\Models\Order;
-use App\Models\Sale;
-use App\Models\Stock;
 use App\Services\Api\WbApiService;
+use Carbon\Carbon;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
-use Illuminate\Support\Facades\Log;
+use App\Traits\Loggable;
+
 
 class SyncIncomesJob implements ShouldQueue
 {
-    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels, Loggable;
 
     /**
      * Create a new job instance.
      */
-    private Account $account;
+    public Account $account;
 
     public function __construct(Account $account)
     {
@@ -33,27 +33,49 @@ class SyncIncomesJob implements ShouldQueue
      */
     public function handle(WbApiService $api): void
     {
-        Log::info('Incomes sync started');
+        $this->logInfo('Incomes sync started');
 
         $page = 1;
         $total = 0;
 
         do {
-            Log::info("Fetching incomes page {$page}");
+            $this->logInfo("Fetching incomes page {$page}");
 
-            $response = $api->get('/api/incomes', [
-                'dateFrom' => now()->subDays(7)->format('Y-m-d'),
+            $lastDate = Order::where('account_id', $this->account->id)
+                ->max('date');
+
+            $dateFrom = $lastDate
+                ? Carbon::parse($lastDate)->format('Y-m-d')
+                : now()->subDays(7)->format('Y-m-d');
+
+            $params = [
+                'dateFrom' => $dateFrom,
                 'dateTo'   => now()->format('Y-m-d'),
                 'page'     => $page,
                 'limit'    => 500,
-            ]);
+            ];
+
+            $token = $this->account->getToken('wb', 'api_key');
+
+            try {
+                $response = $api->get('/api/incomes', $params, $token);
+            } catch (\Exception $e) {
+
+                $this->logError('Incomes API error', [
+                    'account_id' => $this->account->id,
+                    'message' => $e->getMessage(),
+                    'params' => $params,
+                ]);
+
+                return;
+            }
 
             $data = $response['data'] ?? [];
 
             foreach ($data as $item) {
 
                 if (!isset($item['income_id'])) {
-                    Log::warning('Income skipped (no income_id)', $item);
+                    $this->logWarning('Income skipped (no income_id)', $item);
                     continue;
                 }
 
@@ -81,7 +103,7 @@ class SyncIncomesJob implements ShouldQueue
                     $total++;
 
                 } catch (\Exception $e) {
-                    Log::error('Income save failed', [
+                    $this->logError('Income save failed', [
                         'error' => $e->getMessage(),
                         'data' => $item,
                     ]);
@@ -92,6 +114,6 @@ class SyncIncomesJob implements ShouldQueue
 
         } while (count($data) === 500);
 
-        Log::info("Incomes sync finished. Total: {$total}");
+        $this->logInfo("Incomes sync finished. Total: {$total}");
     }
 }

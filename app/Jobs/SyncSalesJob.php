@@ -5,21 +5,22 @@ use App\Models\Account;
 use App\Models\Order;
 use App\Models\Sale;
 use App\Services\Api\WbApiService;
+use Carbon\Carbon;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
-use Illuminate\Support\Facades\Log;
+use App\Traits\Loggable;
 
 class SyncSalesJob implements ShouldQueue
 {
-    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels, Loggable;
 
     /**
      * Create a new job instance.
      */
-    private Account $account;
+    public Account $account;
 
     public function __construct(Account $account)
     {
@@ -31,27 +32,49 @@ class SyncSalesJob implements ShouldQueue
      */
     public function handle(WbApiService $api): void
     {
-        Log::info('Sales sync started');
+        $this->logInfo('Sales sync started');
 
         $page = 1;
         $total = 0;
 
         do {
-            Log::info("Fetching sales page {$page}");
+            $this->logInfo("Fetching sales page {$page}");
 
-            $response = $api->get('/api/sales', [
-                'dateFrom' => now()->subDays(7)->format('Y-m-d'),
+            $lastDate = Order::where('account_id', $this->account->id)
+                ->max('date');
+
+            $dateFrom = $lastDate
+                ? Carbon::parse($lastDate)->format('Y-m-d')
+                : now()->subDays(7)->format('Y-m-d');
+
+            $params = [
+                'dateFrom' => $dateFrom,
                 'dateTo'   => now()->format('Y-m-d'),
                 'page'     => $page,
                 'limit'    => 500,
-            ]);
+            ];
+
+            $token = $this->account->getToken('wb', 'api_key');
+
+            try {
+                $response = $api->get('/api/sales', $params, $token);
+            } catch (\Exception $e) {
+
+                $this->logError('Sales API error', [
+                    'account_id' => $this->account->id,
+                    'message' => $e->getMessage(),
+                    'params' => $params,
+                ]);
+
+                return;
+            }
 
             $data = $response['data'] ?? [];
 
             foreach ($data as $item) {
 
                 if (!isset($item['sale_id'])) {
-                    Log::warning('Sale skipped (no sale_id)', $item);
+                    $this->logWarning('Sale skipped (no sale_id)', $item);
                     continue;
                 }
 
@@ -91,7 +114,7 @@ class SyncSalesJob implements ShouldQueue
                     $total++;
 
                 } catch (\Exception $e) {
-                    Log::error('Sale save failed', [
+                    $this->logError('Sale save failed', [
                         'error' => $e->getMessage(),
                         'data' => $item,
                     ]);
@@ -102,6 +125,6 @@ class SyncSalesJob implements ShouldQueue
 
         } while (count($data) === 500);
 
-        Log::info("Sales sync finished. Total: {$total}");
+        $this->logInfo("Sales sync finished. Total: {$total}");
     }
 }

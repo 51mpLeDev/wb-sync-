@@ -4,21 +4,23 @@ namespace App\Jobs;
 use App\Models\Account;
 use App\Models\Order;
 use App\Services\Api\WbApiService;
+use Carbon\Carbon;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
-use Illuminate\Support\Facades\Log;
+use App\Traits\Loggable;
+
 
 class SyncOrdersJob implements ShouldQueue
 {
-    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels, Loggable;
 
     /**
      * Create a new job instance.
      */
-    private Account $account;
+    public Account $account;
 
     public function __construct(Account $account)
     {
@@ -30,34 +32,51 @@ class SyncOrdersJob implements ShouldQueue
      */
     public function handle(WbApiService $api): void
     {
-        Log::info('Orders sync started');
+        $this->logInfo('Orders sync started');
 
         $page = 1;
         $total = 0;
 
         do {
-            Log::info("Fetching orders page {$page}");
+            $this->logInfo("Fetching orders page {$page}");
+
+            $lastDate = Order::where('account_id', $this->account->id)
+                ->max('date');
+
+            $dateFrom = $lastDate
+                ? Carbon::parse($lastDate)->format('Y-m-d')
+                : now()->subDays(7)->format('Y-m-d');
+
+            $params = [
+                'dateFrom' => $dateFrom,
+                'dateTo'   => now()->format('Y-m-d'),
+                'page'     => $page,
+                'limit'    => 500,
+            ];
+
+            $token = $this->account->getToken('wb', 'api_key');
 
             try {
-                $response = $api->get('/api/orders', [
-                    'dateFrom' => now()->subDays(7)->format('Y-m-d'),
-                    'dateTo'   => now()->format('Y-m-d'),
-                    'page'     => $page,
-                    'limit'    => 500,
-                ]);
+                $response = $api->get('/api/orders', $params, $token);
             } catch (\Exception $e) {
-                Log::error('API error: ' . $e->getMessage());
+
+                $this->logError('Order API error', [
+                    'account_id' => $this->account->id,
+                    'message' => $e->getMessage(),
+                    'params' => $params,
+                ]);
+
                 return;
             }
 
             $data = $response['data'] ?? [];
 
-            Log::info('Received: ' . count($data));
+            $this->logInfo('Received: ' . count($data));
 
             foreach ($data as $item) {
 
                 if (!isset($item['g_number'])) {
-                    Log::warning('Skipped order without g_number', $item);
+                    $this->logWarning('Skipped order without g_number', $item);
                     continue;
                 }
 
@@ -93,7 +112,7 @@ class SyncOrdersJob implements ShouldQueue
                     $total++;
 
                 } catch (\Exception $e) {
-                    Log::error('Save failed', [
+                    $this->logError('Save failed', [
                         'error' => $e->getMessage(),
                         'data' => $item
                     ]);
@@ -104,6 +123,6 @@ class SyncOrdersJob implements ShouldQueue
 
         } while (count($data) === 500);
 
-        Log::info("Orders sync finished. Total: {$total}");
+        $this->logInfo("Orders sync finished. Total: {$total}");
     }
 }
