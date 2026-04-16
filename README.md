@@ -2,64 +2,103 @@
 
 ## 📌 Описание
 
-Сервис для синхронизации данных с тестового API (orders, sales, stocks, incomes) и сохранения их в базу данных MySQL.
+Сервис для синхронизации данных с тестового API (orders, sales, stocks, incomes) с поддержкой мульти-аккаунтов и сохранением в MySQL.
 
-Проект реализован на Laravel с использованием очередей и постраничной загрузки данных.
+Проект реализован на Laravel с использованием очередей, постраничной загрузки и обработки ошибок API.
 
 ---
 
 ## ⚙️ Стек
 
-* PHP 8+
+* PHP 8.4
 * Laravel 13
-* MySQL
-* Queue (database)
+* MySQL 8
+* Docker + Docker Compose
+* Laravel Queue (database)
+* Scheduler
 
 ---
 
-## 🚀 Установка
+## 🚀 Быстрый запуск (Docker)
 
 ```bash
 git clone https://github.com/51mpLeDev/wb-sync-
 cd wb-sync-
 
-composer install
-cp .env.example .env
-php artisan key:generate
+docker compose up -d --build
 ```
+
+После запуска:
+
+* API: http://localhost:8000
+* MySQL: localhost:3307
 
 ---
 
-## 🗄 Настройка БД
+## 🗄 Миграции
 
-```env
-DB_CONNECTION=mysql
-DB_HOST=127.0.0.1
-DB_PORT=3306
-DB_DATABASE=wb_sync
-DB_USERNAME=wb_user
-DB_PASSWORD=
-```
+Миграции выполняются автоматически при старте контейнера.
 
----
-
-## ▶️ Миграции
+Если нужно вручную:
 
 ```bash
-php artisan migrate
+docker compose exec app php artisan migrate
 ```
 
 ---
 
-## 🔑 API доступ
+## 🧠 Архитектура
 
-* Host: http://109.73.206.144:6969
-* Key: E6kUTYrYwZq2tN4QEtyzsbEBk3ie
+* **Services** — работа с API
+* **Jobs** — синхронизация данных
+* **Models** — работа с БД
+* **Console Commands** — управление через CLI
+* **Queue** — обработка в фоне
 
-Авторизация через query параметр:
+---
 
+## 🔑 Работа с токенами
+
+### 📌 Правило
+
+У одного аккаунта может быть несколько токенов, но:
+
+```text
+account_id + api_service_id + token_type_id = UNIQUE
 ```
-?key=E6kUTYrYwZq2tN4QEtyzsbEBk3ie
+
+---
+
+## ▶️ Создание сущностей через CLI
+
+### Компания
+
+```bash
+php artisan company:create
+```
+
+### Аккаунт
+
+```bash
+php artisan account:create
+```
+
+### API сервис
+
+```bash
+php artisan api-service:create
+```
+
+### Тип токена
+
+```bash
+php artisan token-type:create
+```
+
+### Токен
+
+```bash
+php artisan token:create
 ```
 
 ---
@@ -67,15 +106,81 @@ php artisan migrate
 ## ▶️ Запуск синхронизации
 
 ```bash
-php artisan queue:work
-php artisan wb:sync
+docker compose exec app php artisan wb:sync
 ```
 
 ---
 
-## 🧠 Реализовано
+## ⚙️ Очередь
 
-### ✔ Сущности
+Очередь запускается автоматически в контейнере:
+
+```bash
+wb_queue
+```
+
+Проверка:
+
+```bash
+docker logs -f wb_queue
+```
+
+---
+
+## ⏱ Планировщик
+
+```php
+Schedule::command('wb:sync')->twiceDaily(9, 18);
+```
+
+---
+
+## 📡 API
+
+Host:
+
+```
+http://109.73.206.144:6969
+```
+
+Авторизация:
+
+```
+?key=API_KEY
+```
+
+---
+
+## 🔄 Обработка данных
+
+* Пагинация (`page`, `limit=500`)
+* Загрузка до конца данных
+* Обработка больших объёмов
+
+---
+
+## ⚠️ Обработка ошибок
+
+### Реализовано:
+
+* Retry при ошибках
+* Обработка `429 Too Many Requests`
+* Повторные попытки с задержкой
+* Логирование ошибок
+
+---
+
+## 🧾 Логирование
+
+* Файл логов (storage/logs)
+* Вывод в консоль
+* Статусы выполнения
+* Ошибки API
+* Ошибки сохранения
+
+---
+
+## 📊 Поддерживаемые сущности
 
 * Orders
 * Sales
@@ -84,90 +189,17 @@ php artisan wb:sync
 
 ---
 
-### ✔ Пагинация
+## 📌 Особенности
 
-* Используется `page` и `limit=500`
-* Данные загружаются циклом до конца
-
----
-
-### ✔ Уникальные ключи
-
-| Entity  | Поле                   |
-| ------- | ---------------------- |
-| Orders  | g_number               |
-| Sales   | sale_id                |
-| Stocks  | warehouse_name + nm_id |
-| Incomes | income_id              |
-
----
-
-### ✔ Очереди
-
-* Jobs выполняются через Laravel Queue
-* Независимые задачи выполняются параллельно
-
----
-
-### ✔ Логирование
-
-* Старт/конец синхронизации
-* Количество обработанных записей
-* Ошибки API
-* Ошибки сохранения данных
-
----
-
-## 📊 Архитектура
-
-* Services → работа с API
-* Jobs → синхронизация данных
-* Models → работа с БД
-* Console Command → запуск процесса
-
----
-
-## 🗄 Доступ к базе данных
-
-Host: crossover.proxy.rlwy.net  
-Port: 45055  
-Database: railway  
-User: root  
-Password: eSPcPyIcjWJzGagLLUmpGORSdiNFOSqO
-
-Таблицы:
-- orders
-- sales
-- stocks
-- incomes
-
----
-
-## 💬 Команда
-
-```bash
-php artisan wb:sync
-```
-
-Запускает:
-
-* SyncOrdersJob
-* SyncSalesJob
-* SyncStocksJob
-* SyncIncomesJob
-
----
-
-## 📈 Результат
-
-После выполнения:
-
-* База данных заполнена актуальными данными
-* Дубли исключены
-* Ошибки логируются
+* Мульти-аккаунты
+* Поддержка разных API сервисов
+* Поддержка разных типов токенов
+* Уникальность данных (без дублей)
+* Масштабируемая архитектура
 
 ---
 
 ## 👨‍💻 Автор
 
-Shukurov Firdavs | Full-Stack Developer
+Shukurov Firdavs
+Full-Stack Developer
