@@ -2,8 +2,8 @@
 
 namespace App\Console\Commands;
 
-use Illuminate\Console\Attributes\Description;
-use Illuminate\Console\Attributes\Signature;
+use App\Models\Account;
+use App\Models\Company;
 use Illuminate\Console\Command;
 
 class CreateAccount extends Command
@@ -15,14 +15,19 @@ class CreateAccount extends Command
      */
     public function handle()
     {
-        $companyId = $this->ask('Company ID');
+        $companies = Company::pluck('name', 'id')->toArray();
+
+        $companyName = $this->choice('Select company', $companies);
+
+        $companyId = array_search($companyName, $companies);
+
         $name = $this->ask('Account name');
 
-        $account = \App\Models\Account::create([
+        $account = Account::create([
             'company_id' => $companyId,
             'name' => $name
         ]);
 
-        $this->info("Created account ID: {$account->id}");
+        $this->info("Account created: {$account->id}");
     }
 }

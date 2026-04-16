@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Models\Company;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
@@ -17,7 +18,7 @@ class CreateCompany extends Command
     {
         $name = $this->ask('Company name');
 
-        $company = \App\Models\Company::create([
+        $company = Company::create([
             'name' => $name
         ]);
 

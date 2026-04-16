@@ -2,8 +2,7 @@
 
 namespace App\Console\Commands;
 
-use Illuminate\Console\Attributes\Description;
-use Illuminate\Console\Attributes\Signature;
+use App\Models\TokenType;
 use Illuminate\Console\Command;
 
 class CreateTokenType extends Command
@@ -17,7 +16,7 @@ class CreateTokenType extends Command
     {
         $name = $this->ask('Type (bearer, api_key...)');
 
-        $type = \App\Models\TokenType::create([
+        $type = TokenType::create([
             'name' => $name
         ]);
 
