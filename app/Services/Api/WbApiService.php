@@ -2,10 +2,13 @@
 
 namespace App\Services\Api;
 
+use App\Traits\Loggable;
 use Illuminate\Support\Facades\Http;
 
 class WbApiService
 {
+    use Loggable;
+
     protected string $host;
     protected string $apiKey;
 
@@ -15,16 +18,34 @@ class WbApiService
         $this->apiKey = config('services.wb.key');
     }
 
-    public function get(string $endpoint, array $params = [], $token = null)
+    public function get(string $endpoint, array $params = [], $token = null, int $attempt = 1)
     {
-        $params['key'] = $this->apiKey;
-
         $request = Http::retry(5, 2000);
 
         if ($token) {
             $request = $this->applyToken($request, $token);
         }
-        return $request->get($this->host . $endpoint, $params)->json();
+
+        $response = $request->get($this->host . $endpoint, $params);
+
+        if ($response->status() === 429) {
+
+            if ($attempt > 5) {
+                throw new \Exception('Too many retries (429)');
+            }
+
+            $this->logInfo("429 received, retry {$attempt}");
+
+            sleep(2 * $attempt);
+
+            return $this->get($endpoint, $params, $token, $attempt + 1);
+        }
+
+        if ($response->failed()) {
+            throw new \Exception($response->body());
+        }
+
+        return $response->json();
     }
 
     private function applyToken($request, $token)
