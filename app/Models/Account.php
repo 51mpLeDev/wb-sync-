@@ -25,4 +25,12 @@ class Account extends Model
     {
         return $this->hasMany(Order::class);
     }
+
+    public function getToken(string $serviceName, string $typeName)
+    {
+        return $this->tokens()
+            ->whereHas('apiService', fn($q) => $q->where('name', $serviceName))
+            ->whereHas('tokenType', fn($q) => $q->where('name', $typeName))
+            ->first();
+    }
 }
