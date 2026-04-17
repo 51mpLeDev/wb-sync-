@@ -11,15 +11,26 @@ return new class extends Migration
      */
     public function up(): void
     {
-        DB::statement("
-            DELETE t1 FROM tokens t1
-            INNER JOIN tokens t2
-            WHERE
-                t1.id > t2.id
-                AND t1.account_id = t2.account_id
-                AND t1.api_service_id = t2.api_service_id
-                AND t1.token_type_id = t2.token_type_id
-        ");
+        $duplicates = DB::table('tokens')
+            ->select('account_id', 'api_service_id', 'token_type_id')
+            ->groupBy('account_id', 'api_service_id', 'token_type_id')
+            ->havingRaw('COUNT(*) > 1')
+            ->get();
+
+        foreach ($duplicates as $dup) {
+            $ids = DB::table('tokens')
+                ->where([
+                    'account_id' => $dup->account_id,
+                    'api_service_id' => $dup->api_service_id,
+                    'token_type_id' => $dup->token_type_id,
+                ])
+                ->pluck('id')
+                ->toArray();
+
+            array_shift($ids);
+
+            DB::table('tokens')->whereIn('id', $ids)->delete();
+        }
 
         Schema::table('tokens', function (Blueprint $table) {
             $table->unique(
