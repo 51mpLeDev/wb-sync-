@@ -22,8 +22,10 @@ services:
     container_name: wb_db
     restart: always
     environment:
-      MYSQL_DATABASE: wb_sync
-      MYSQL_ROOT_PASSWORD: root
+        MYSQL_ROOT_PASSWORD: root
+        MYSQL_DATABASE: wb_sync
+        MYSQL_USER: wb_user
+        MYSQL_PASSWORD: secret
     ports:
       - "3307:3306"
     volumes:
@@ -35,7 +37,17 @@ services:
     working_dir: /var/www
     command: sh -c "
         echo 'Waiting for DB...' &&
-        sleep 10 &&
+        until php -r '
+          try {
+            new PDO(\"mysql:host=db;port=3306;dbname=wb_sync\", \"wb_user\", \"secret\");
+            echo \"DB connected\n\";
+            exit(0);
+          } catch (Exception \$e) {
+            exit(1);
+          }
+        '; do
+        sleep 2;
+        done &&
         php artisan queue:work --tries=3 --timeout=90 --verbose
       "
     restart: always
